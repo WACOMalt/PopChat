@@ -18,7 +18,7 @@ body, * {
 }
 label { display: block; }
 label, button { margin: 0.5em; }
-div { 
+div {
 	background: rgba(200, 200, 200, 0.8);
 	width: 20em;
 	height: 8em;
@@ -63,8 +63,8 @@ Promise.all([
 		connection.instance.child('things').push({
 			shape: "messageroot",
 			user: user.displayName,
-			messagetext: messagetext.value,
-			position: getRandomVector(256)
+			userId: user.userId,
+			messagetext: messagetext.value
 		});
 	});
 });

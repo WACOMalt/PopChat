@@ -14,18 +14,22 @@ var config = { authorId: 'WACOMalt', appId: 'PopChat', baseRefUrl: "https://popc
 var sceneSync, popup;
 var head;
 var scale;
+var user;
+var currentMessage;
 
 var promises = [
   altspace.utilities.sync.connect(config),
   altspace.getThreeJSTrackingSkeleton(),
-  altspace.getEnclosure()
+  altspace.getEnclosure(),
+  altspace.getUser()
 ];
-  
+
 Promise.all(promises).then(function (results) {
   var connection = results.shift();
   var skeleton = results.shift();
   var enclosure = results.shift();
-  
+  user = results.shift();
+
   sim.scene.add(skeleton);
   head = skeleton.getJoint('Head');//head is an Object3D
   scale = enclosure.pixelsPerMeter;
@@ -33,8 +37,7 @@ Promise.all(promises).then(function (results) {
 	sceneSync = altspace.utilities.behaviors.SceneSync(connection.instance, {
 		instantiators: {
 		 	'messageroot': createThing
-		},
-		ready: ready
+		}
 	});
 	sim.scene.addBehavior(sceneSync);
 
@@ -44,37 +47,21 @@ Promise.all(promises).then(function (results) {
 		icon: getFullUrl('favicon.png'),
 		hidden: true
 	}).then(function (_popup) {
-		// Save a reference to the popup so that we can open it when a user clicks 
+		// Save a reference to the popup so that we can open it when a user clicks
 		// on any shape via the ShowPopup behavior.
 		popup = _popup;
 	});
 
-	// This example uses Firebase to communicate between the popup and the main app. 
+	// This example uses Firebase to communicate between the popup and the main app.
 	// The form in the popup adds shapes to Firebase. When that happens, we instantiate the corresponding shape here.
 	connection.instance.child('things').on('child_added', function (snapshot) {
 		var thing = snapshot.val();
-		if (!thing) { return; }
-		sceneSync.instantiate(thing.shape, thing);
+		if (!thing || thing.userId !== user.userId) { return; }
+		if (currentMessage) { sceneSync.destroy(currentMessage); }
+		thing.position = head.position.clone();
+		sceneSync.instantiate(thing.shape, thing, true);
 	});
 });
-
-function ready(firstInstance) {
-	if (firstInstance) {
-		var popupShowCube = sceneSync.instantiate('messageroot', {
-			color: 'white',
-			position: {x: 0, y: -512, z: 0}
-		});
-	}
-}
-
-function ShowPopup() {
-	function awake(obj) {
-		obj.addEventListener('cursordown', function() {
-			popup.show();
-		});
-	}
-	return { awake: awake };
-};
 
 function getFullUrl(path) {
 	var currPath = location.pathname;
@@ -122,11 +109,17 @@ function createThing(options) {
 	//var material = new THREE.MeshBasicMaterial({color: options.color});
 	var messageroot = new THREE.Object3D();
 	messageroot.position.copy(options.position);
+	if (options.userId === user.userId) {
+		messageroot.addBehavior(Follow({joint: head}));
+	}
+	else {
+		messageroot.addBehavior(LookAt({joint: head}));
+	}
 	messageroot.addBehaviors(
-		altspace.utilities.behaviors.Object3DSync(),
+		altspace.utilities.behaviors.Object3DSync({position: true}),
 		ShowPopup()
 	);
-	if (options.user) { 
+	if (options.user) {
 		var label = new THREE.Mesh(
 				new THREE.PlaneGeometry(.5, .125),
 				new THREE.MeshBasicMaterial({
@@ -134,12 +127,12 @@ function createThing(options) {
 					map: getUserTextTexture(options.user), side: THREE.DoubleSide
 				})
 		);
-		
+
 		label.position.y = 0.6;
 		messageroot.add(label);
 	}
-	
-	if (options.messagetext) { 
+
+	if (options.messagetext) {
 		var messagetext = new THREE.Mesh(
 				new THREE.PlaneGeometry(1, .25),
 				new THREE.MeshBasicMaterial({
@@ -147,14 +140,47 @@ function createThing(options) {
 					map: getMessageTextTexture(options.messagetext), side: THREE.DoubleSide
 				})
 		);
-		
+
 		messagetext.position.y = 0.4;
 		messageroot.add(messagetext);
-    messageroot.scale.set(scale, scale, scale);
+		messageroot.scale.set(scale, scale, scale);
+	}
+	sim.scene.add(messageroot);
+	currentMessage = messageroot;
+	return messageroot;
+}
+
+function ShowPopup() {
+	function awake(obj) {
+		obj.addEventListener('cursordown', function() {
+			popup.show();
+		});
+	}
+	return { awake: awake };
+};
+
+function Follow(config) {
+	var joint = config.joint;
+	var object3d;
+	var sync;
+
+	function awake(obj) {
+		object3d = obj;
 	}
 
-	head.add(messageroot);
-	return messageroot;
+	function update() {
+		object3d.position.copy(joint.position);
+		object3d.rotation.copy(joint.rotation);
+	}
+
+	return { awake: awake, update: update };
+}
+
+function LookAt(config) {
+	function update() {
+		object3d.lookAt(config.joint.position);
+	}
+	return { update: update };
 }
 
 </script>
