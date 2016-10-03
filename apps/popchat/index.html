@@ -98,7 +98,7 @@ function getMessageTextTexture(text) {
 	ctx.fillStyle = 'black'
 	ctx.textAlign = 'left';
 	ctx.textBaseline = 'middle';
-	ctx.font = '16pt sans-serif';
+	ctx.font = '24pt sans-serif';
 	ctx.fillText(text || '', 24, 24);
 	var messageTextTexture = new THREE.Texture(canvas);
 	messageTextTexture.needsUpdate = true;
